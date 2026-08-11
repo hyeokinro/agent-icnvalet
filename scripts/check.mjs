@@ -18,7 +18,12 @@ const {
   CANARY_DATE,
   TELEGRAM_BOT_TOKEN,
   TELEGRAM_CHAT_ID,
+  VERBOSE,
 } = process.env;
+
+// 테스트용: true면 "아직 자리 없음"도 알려줘서 체크가 실제로 도는지 눈으로
+// 확인할 수 있다. 정상 운영 시엔 매 실행마다 스팸이 되니 false로 끌 것.
+const verbose = VERBOSE === "true";
 
 async function callApi(path, params) {
   const url = new URL(API_BASE + path);
@@ -117,6 +122,8 @@ async function main() {
     }
     if (ev.data === true) {
       await sendTelegram(`🚗 ${target.label} 예약 가능!\n예약: ${BOOKING_URL}`);
+    } else if (verbose) {
+      await sendTelegram(`❌ ${target.label} 아직 자리 없음`);
     }
   }
 }
