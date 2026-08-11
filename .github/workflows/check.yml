@@ -13,8 +13,7 @@ jobs:
       CANARY_DATE: "2026-09-20"
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      # 테스트 중엔 "자리 없음"도 알려서 눈으로 확인. 정상 운영 전에 "false"로.
-      VERBOSE: "true"
+      VERBOSE: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
