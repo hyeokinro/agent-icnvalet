@@ -11,5 +11,4 @@ crons = ["*/10 * * * *"]
 [vars]
 GITHUB_REPO = "hyeokinro/agent-icnvalet"
 GITHUB_WORKFLOW = "check.yml"
-# main으로 머지되기 전까지는 이 브랜치를 가리킨다. 머지 후 "main"으로 바꿀 것.
-GITHUB_REF = "claude/amano-valet-booking-monitor-37w22p"
+GITHUB_REF = "main"

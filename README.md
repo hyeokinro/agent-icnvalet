@@ -69,8 +69,7 @@ Actions로 자동배포하는 대신 Cloudflare 대시보드에 한 번 붙여�
    `wrangler.toml`의 `[vars]`에 있는 값 그대로 3개 추가:
    - `GITHUB_REPO` = `hyeokinro/agent-icnvalet`
    - `GITHUB_WORKFLOW` = `check.yml`
-   - `GITHUB_REF` = 이 브랜치가 아직 `main`에 머지되기 전이면 이 브랜치 이름,
-     머지된 후면 `main`
+   - `GITHUB_REF` = `main`
 4. 같은 화면에서 **Add secret**으로 `GITHUB_TOKEN` 추가 — 값은 GitHub
    Personal Access Token (아래 참고).
 5. 해당 Worker → **Settings → Triggers → Cron Triggers → Add Cron Trigger**
