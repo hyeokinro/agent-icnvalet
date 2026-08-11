@@ -3,9 +3,6 @@
 // 때마다 계속 알림을 보낸다.
 //
 // 함정 노트 (스펙 참고):
-// - booking/check 의 type 은 실질적으로 BASIC만 인식한다. 프리미엄 확인은
-//   반드시 premium/check 를 별도로 호출해야 한다 (booking/check?type=PREMIUM
-//   은 조용히 data:false 를 준다).
 // - 이 API는 실패를 에러가 아니라 data:false 로 준다. 그래서 카나리아
 //   (항상 열려 있어야 하는 날짜) 를 매번 같이 조회해서, false 가 나오면
 //   "만석" 이 아니라 "신뢰 불가"(환경 차단 또는 카나리아 자체가 만석)로
@@ -98,33 +95,23 @@ async function main() {
     return;
   }
 
-  const targets = [
-    {
-      label: `일반발렛(${TARGET_DATE})`,
-      call: () => callApi("/web/setting/booking/check", { date: TARGET_DATE, type: "BASIC" }),
-    },
-    {
-      label: `프리미엄발렛(${TARGET_DATE})`,
-      call: () => callApi("/web/setting/premium/check", { date: TARGET_DATE }),
-    },
-  ];
+  const targetLabel = `일반발렛(${TARGET_DATE})`;
+  const ev = evaluate(
+    await callApi("/web/setting/booking/check", { date: TARGET_DATE, type: "BASIC" })
+  );
 
-  for (const target of targets) {
-    const ev = evaluate(await target.call());
-
-    if (ev.status === "error") {
-      await sendTelegram(`🔴 ${target.label} API 오류: ${ev.detail}`);
-      continue;
-    }
-    if (ev.status === "schema_broken") {
-      await sendTelegram(`🟠 ${target.label} 응답 구조 변경 감지: data 필드가 없거나 boolean이 아닙니다.`);
-      continue;
-    }
-    if (ev.data === true) {
-      await sendTelegram(`🚗 ${target.label} 예약 가능!\n예약: ${BOOKING_URL}`);
-    } else if (verbose) {
-      await sendTelegram(`❌ ${target.label} 아직 자리 없음`);
-    }
+  if (ev.status === "error") {
+    await sendTelegram(`🔴 ${targetLabel} API 오류: ${ev.detail}`);
+    return;
+  }
+  if (ev.status === "schema_broken") {
+    await sendTelegram(`🟠 ${targetLabel} 응답 구조 변경 감지: data 필드가 없거나 boolean이 아닙니다.`);
+    return;
+  }
+  if (ev.data === true) {
+    await sendTelegram(`🚗 ${targetLabel} 예약 가능!\n예약: ${BOOKING_URL}`);
+  } else if (verbose) {
+    await sendTelegram(`❌ ${targetLabel} 아직 자리 없음`);
   }
 }
 
