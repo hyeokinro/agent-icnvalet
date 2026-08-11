@@ -38,20 +38,15 @@ Cloudflare를 "초침"으로만 쓰는 이유: GitHub Actions 자체 스케줄(`
 
 ## 설정
 
-### GitHub 저장소 시크릿 (Settings → Secrets and variables → Actions)
+### GitHub 저장소 시크릿 (Settings → Secrets and variables → Actions → Secrets)
 
-| 이름 | 용도 | 값 |
-|---|---|---|
-| `TELEGRAM_BOT_TOKEN` | `check.yml`이 알림 보낼 때 사용 | @BotFather가 발급한 봇 토큰 |
-| `TELEGRAM_CHAT_ID` | 알림 받을 채팅방 | `8772754228` |
-| `CLOUDFLARE_API_TOKEN` | `deploy.yml`이 Worker 배포할 때 사용 | Cloudflare 대시보드에서 발급 ("Edit Cloudflare Workers" 템플릿) |
-| `CLOUDFLARE_ACCOUNT_ID` | 위와 동일 | Cloudflare 대시보드 우측에 표시되는 계정 ID |
-| `DISPATCH_PAT` | Worker가 GitHub Actions를 깨울 때 쓰는 토큰 | GitHub Personal Access Token (아래 참고) |
+`check.yml`이 알림을 보낼 때 쓴다. 이 2개만 있으면 됨 — Cloudflare 관련
+시크릿은 GitHub 쪽에 둘 필요가 없다 (아래 "배포" 참고).
 
-**`DISPATCH_PAT` 만들기**: GitHub 우측 상단 프로필 → Settings → Developer
-settings → Personal access tokens → Fine-grained tokens → Generate new token.
-Repository access는 이 저장소(`agent-icnvalet`)만 선택하고, Permissions에서
-**Actions: Read and write** 권한을 준다.
+| 이름 | 값 |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | @BotFather가 발급한 봇 토큰 |
+| `TELEGRAM_CHAT_ID` | `8772754228` |
 
 ### `TARGET_DATE` / `CANARY_DATE` 바꾸기
 
@@ -60,25 +55,31 @@ Repository access는 이 저장소(`agent-icnvalet`)만 선택하고, Permission
 함. `CANARY_DATE`는 항상 열려 있는 것으로 확인된 날짜여야 하며, **실제로
 만석이 되면 다른 날짜로 교체할 것** — "신뢰 불가" 알림이 오면 그 신호.
 
-## 배포
+## 배포 (Cloudflare 대시보드에서 직접, 자동배포 없음)
 
-`main` 브랜치에 `src/`나 `wrangler.toml`이 바뀌어 push되면(또는 Actions 탭에서
-수동 실행 시) `.github/workflows/deploy.yml`이 Cloudflare Worker를 자동
-배포한다. 최초 1회는 위 시크릿 5개를 모두 등록한 뒤 Actions 탭에서
-**Deploy Worker** 워크플로우를 수동 실행(Run workflow)하면 된다.
+Worker 코드(`src/index.js`)는 20줄짜리고 앞으로 거의 안 바뀌므로, GitHub
+Actions로 자동배포하는 대신 Cloudflare 대시보드에 한 번 붙여넣는 방식으로
+한다. GitHub에 Cloudflare 관련 자격증명을 둘 필요가 전혀 없다.
 
-이 브랜치가 아직 `main`에 머지되기 전이라면, `wrangler.toml`의 `GITHUB_REF`
-값이 이 브랜치 이름으로 되어 있다 — 머지 후에는 `"main"`으로 바꿔야
-Worker가 올바른 브랜치의 `check.yml`을 깨운다.
+1. dash.cloudflare.com → **Workers & Pages** → **Create application** →
+   **Create Worker** → 이름 정하고 배포 (기본 "Hello World" 코드로 일단 생성됨).
+2. 생성된 Worker → **Edit code** (또는 Quick edit) → `src/index.js` 내용을
+   전체 복사해서 붙여넣기 → **Save and deploy**.
+3. 해당 Worker → **Settings → Variables** → *Environment Variables* 에
+   `wrangler.toml`의 `[vars]`에 있는 값 그대로 3개 추가:
+   - `GITHUB_REPO` = `hyeokinro/agent-icnvalet`
+   - `GITHUB_WORKFLOW` = `check.yml`
+   - `GITHUB_REF` = 이 브랜치가 아직 `main`에 머지되기 전이면 이 브랜치 이름,
+     머지된 후면 `main`
+4. 같은 화면에서 **Add secret**으로 `GITHUB_TOKEN` 추가 — 값은 GitHub
+   Personal Access Token (아래 참고).
+5. 해당 Worker → **Settings → Triggers → Cron Triggers → Add Cron Trigger**
+   → `*/10 * * * *` 입력 → 저장.
 
-로컬 터미널로 배포하고 싶다면 (선택):
-
-```bash
-npm install
-npx wrangler login
-npx wrangler secret put GITHUB_TOKEN   # DISPATCH_PAT과 같은 값
-npx wrangler deploy
-```
+**`GITHUB_TOKEN`용 PAT 만들기**: GitHub 우측 상단 프로필 → Settings →
+Developer settings → Personal access tokens → Fine-grained tokens →
+Generate new token. Repository access는 이 저장소(`agent-icnvalet`)만
+선택하고, Permissions에서 **Actions: Read and write** 권한을 준다.
 
 수동으로 한 번 깨워보고 싶다면 배포된 Worker URL에 그냥 접속(GET)하면 된다
 — `fetch` 핸들러도 동일하게 GitHub Actions를 깨운다. (이 URL은 인증 없이

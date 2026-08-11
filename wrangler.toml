@@ -1,3 +1,6 @@
+# 참고용. 배포는 Cloudflare 대시보드에서 직접 하므로 이 파일은 실제로
+# 사용되지 않는다 — 여기 적힌 vars 이름/값을 대시보드의 Settings → Variables
+# 에 그대로 입력하면 된다 (README 참고).
 name = "amano-valet-watch"
 main = "src/index.js"
 compatibility_date = "2024-11-01"
