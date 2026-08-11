@@ -1,0 +1,24 @@
+name = "amano-valet-watch"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# Cloudflare Cron Triggers support 1-minute granularity, matching the
+# polling interval this API tolerates (~1,440 req/day, negligible load).
+[triggers]
+crons = ["* * * * *"]
+
+[[kv_namespaces]]
+binding = "STATE"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[vars]
+API_BASE = "https://api.amanopark.co.kr/api"
+BOOKING_URL = "https://valet.amanopark.co.kr/booking"
+# Booking window is today+60 days; keep TARGET_DATE inside that range.
+TARGET_DATE = "2026-09-24"
+# Canary must be a date currently known to return data:true. This API
+# returns data:false for both "actually full" and "request/env broken" —
+# the canary is how the worker tells those apart. Replace it once 2026-09-20
+# fills up (see README).
+CANARY_DATE = "2026-09-20"
+ERROR_THRESHOLD = "3"
