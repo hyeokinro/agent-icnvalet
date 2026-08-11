@@ -19,33 +19,42 @@
    한 번만 보내고(스팸 방지), 복구되면 다시 조용해진다. 응답에 `data` 필드가 없거나
    boolean이 아니면 "구조 변경" 알림을 별도로 보낸다.
 
-## 배포
+## 배포 (GitHub Actions, 터미널 불필요)
+
+`.github/workflows/deploy.yml`이 `main` 브랜치에 push될 때마다(또는 Actions
+탭에서 수동 실행 시) 자동으로 Cloudflare Workers에 배포한다. 아래 GitHub
+저장소 시크릿(Settings → Secrets and variables → Actions)만 채워두면 된다:
+
+| 시크릿 이름 | 값 |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare 대시보드에서 발급한 API 토큰 ("Edit Cloudflare Workers" 템플릿) |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare 대시보드 우측에 표시되는 계정 ID |
+| `TELEGRAM_BOT_TOKEN` | @BotFather가 발급한 봇 토큰 |
+| `TELEGRAM_CHAT_ID` | 알림 받을 채팅방 ID |
+
+KV 네임스페이스는 Cloudflare 대시보드(Workers & Pages → KV)에서 미리 만들고,
+발급된 ID를 `wrangler.toml`의 `kv_namespaces[0].id`에 채워 커밋해둔다.
+
+로컬 터미널로 배포하고 싶다면 (선택):
 
 ```bash
 npm install
 npx wrangler login
-
-# 상태 저장용 KV 네임스페이스 생성 후, 출력된 id를 wrangler.toml의
-# kv_namespaces[0].id 에 채워넣기
-npx wrangler kv namespace create STATE
-
-# 시크릿 등록 (텔레그램 봇 토큰은 @BotFather, chat_id는 대상 채팅방 id)
+npx wrangler kv namespace create STATE   # id를 wrangler.toml에 채우기
 npx wrangler secret put TELEGRAM_BOT_TOKEN
 npx wrangler secret put TELEGRAM_CHAT_ID
-
-# 배포 후 /run 수동 트리거용 (선택, 없으면 /run은 항상 403)
-npx wrangler secret put DEBUG_TOKEN
-
 npx wrangler deploy
 ```
 
-배포 후 수동 실행으로 카나리아가 살아있는지 바로 확인 가능:
+배포 후 수동 실행으로 카나리아가 살아있는지 바로 확인 가능 (선택, `DEBUG_TOKEN`
+시크릿을 등록한 경우):
 
 ```bash
 curl "https://<worker-subdomain>.workers.dev/run?token=<DEBUG_TOKEN>"
 ```
 
-로그는 `npx wrangler tail`로 확인.
+로그는 Cloudflare 대시보드의 Worker → Logs 탭 (또는 `npx wrangler tail`)에서
+확인.
 
 ## 설정값 (`wrangler.toml` `[vars]`)
 
