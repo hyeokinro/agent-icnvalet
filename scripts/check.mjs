@@ -26,8 +26,10 @@ async function callApi(path, params) {
   const url = new URL(API_BASE + path);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
 
+  // 10분에 한 번 도는 정도라 넉넉하게 잡아도 문제 없다. 해외(GitHub Actions)
+  // -> 한국 서버 요청이라 가끔 느릴 수 있어서 여유를 둔다.
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
+  const timeout = setTimeout(() => controller.abort(), 30000);
   try {
     const res = await fetch(url.toString(), { signal: controller.signal });
     let json = null;
