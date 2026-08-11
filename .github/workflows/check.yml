@@ -1,0 +1,21 @@
+name: Check Availability
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      API_BASE: https://api.amanopark.co.kr/api
+      BOOKING_URL: https://valet.amanopark.co.kr/booking
+      TARGET_DATE: "2026-09-24"
+      CANARY_DATE: "2026-09-20"
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/check.mjs

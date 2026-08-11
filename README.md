@@ -1,11 +1,29 @@
 # amano-valet-watch
 
-아마노파크 발렛 예약(`api.amanopark.co.kr`) 잔여 여부를 10분 간격으로 감시해,
-목표일이 예약 가능해지면 텔레그램으로 알려주는 Cloudflare Worker.
+아마노파크 발렛 예약(`api.amanopark.co.kr`) 잔여 여부를 감시해, 예약이
+가능해지면 텔레그램으로 알려준다.
 
-## 동작 방식
+## 구조
 
-상태를 저장하지 않는 단순한 방식. 매 실행마다 순서대로:
+Cloudflare Worker는 10분마다 깨어나서 **아무 체크도 하지 않고** GitHub
+Actions의 `check.yml` 워크플로우를 `workflow_dispatch`로 깨우기만 한다
+(`src/index.js`). 실제 예약 체크와 텔레그램 발송은 GitHub Actions 쪽
+(`scripts/check.mjs`)에서 처리한다.
+
+```
+Cloudflare Cron (10분) → GitHub Actions workflow_dispatch → scripts/check.mjs → 텔레그램
+```
+
+Cloudflare를 "초침"으로만 쓰는 이유: GitHub Actions 자체 스케줄(`schedule:`)은
+최소 간격이 5분이고 지연도 흔한데, Cloudflare Cron Trigger는 더 촘촘하고
+안정적으로 GitHub Actions를 깨울 수 있다. 대신 실제 로직·시크릿(텔레그램
+토큰 등)은 전부 GitHub Actions 쪽에 있어서 코드를 고칠 때마다 Cloudflare에
+재배포할 필요가 없다 — `scripts/check.mjs`나 `check.yml`의 `TARGET_DATE` 같은
+값을 고치고 GitHub에 push만 하면 다음 실행부터 바로 적용된다.
+
+## 동작 방식 (`scripts/check.mjs`)
+
+상태를 저장하지 않는 단순한 방식. 실행마다:
 
 1. **카나리아 조회** — 항상 열려 있어야 하는 날짜(`CANARY_DATE`)를 먼저 확인.
    이 API는 실패해도 에러가 아니라 `data:false`를 주기 때문에, 카나리아가 `false`면
@@ -15,57 +33,62 @@
    프리미엄 발렛(`premium/check`)을 조회. (`booking/check`에 `type=PREMIUM`을 주면
    검증 에러 없이 조용히 `false`를 주므로 프리미엄은 반드시 별도 엔드포인트로 확인.)
 3. 예약 가능(`data:true`)이면 그때마다 텔레그램 알림을 보낸다. 상태를 기억하지
-   않으므로 **열려 있는 동안은 실행될 때마다 계속 알림이 온다** (지금 간격은
-   10분에 한 번). API 에러나 응답 구조 변경도 발생할 때마다 바로 알린다.
+   않으므로 **열려 있는 동안은 실행될 때마다 계속 알림이 온다**. API 에러나
+   응답 구조 변경도 발생할 때마다 바로 알린다.
 
-## 배포 (GitHub Actions, 터미널 불필요)
+## 설정
 
-`.github/workflows/deploy.yml`이 `main` 브랜치에 push될 때마다(또는 Actions
-탭에서 수동 실행 시) 자동으로 Cloudflare Workers에 배포한다. 아래 GitHub
-저장소 시크릿(Settings → Secrets and variables → Actions)만 채워두면 된다:
+### GitHub 저장소 시크릿 (Settings → Secrets and variables → Actions)
 
-| 시크릿 이름 | 값 |
-|---|---|
-| `CLOUDFLARE_API_TOKEN` | Cloudflare 대시보드에서 발급한 API 토큰 ("Edit Cloudflare Workers" 템플릿) |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare 대시보드 우측에 표시되는 계정 ID |
-| `TELEGRAM_BOT_TOKEN` | @BotFather가 발급한 봇 토큰 |
-| `TELEGRAM_CHAT_ID` | 알림 받을 채팅방 ID |
+| 이름 | 용도 | 값 |
+|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | `check.yml`이 알림 보낼 때 사용 | @BotFather가 발급한 봇 토큰 |
+| `TELEGRAM_CHAT_ID` | 알림 받을 채팅방 | `8772754228` |
+| `CLOUDFLARE_API_TOKEN` | `deploy.yml`이 Worker 배포할 때 사용 | Cloudflare 대시보드에서 발급 ("Edit Cloudflare Workers" 템플릿) |
+| `CLOUDFLARE_ACCOUNT_ID` | 위와 동일 | Cloudflare 대시보드 우측에 표시되는 계정 ID |
+| `DISPATCH_PAT` | Worker가 GitHub Actions를 깨울 때 쓰는 토큰 | GitHub Personal Access Token (아래 참고) |
+
+**`DISPATCH_PAT` 만들기**: GitHub 우측 상단 프로필 → Settings → Developer
+settings → Personal access tokens → Fine-grained tokens → Generate new token.
+Repository access는 이 저장소(`agent-icnvalet`)만 선택하고, Permissions에서
+**Actions: Read and write** 권한을 준다.
+
+### `TARGET_DATE` / `CANARY_DATE` 바꾸기
+
+`.github/workflows/check.yml`의 `env:` 값을 고쳐서 push하면 된다 (Cloudflare
+재배포 불필요). 예약 가능 범위는 오늘+60일이므로 `TARGET_DATE`는 그 안이어야
+함. `CANARY_DATE`는 항상 열려 있는 것으로 확인된 날짜여야 하며, **실제로
+만석이 되면 다른 날짜로 교체할 것** — "신뢰 불가" 알림이 오면 그 신호.
+
+## 배포
+
+`main` 브랜치에 `src/`나 `wrangler.toml`이 바뀌어 push되면(또는 Actions 탭에서
+수동 실행 시) `.github/workflows/deploy.yml`이 Cloudflare Worker를 자동
+배포한다. 최초 1회는 위 시크릿 5개를 모두 등록한 뒤 Actions 탭에서
+**Deploy Worker** 워크플로우를 수동 실행(Run workflow)하면 된다.
+
+이 브랜치가 아직 `main`에 머지되기 전이라면, `wrangler.toml`의 `GITHUB_REF`
+값이 이 브랜치 이름으로 되어 있다 — 머지 후에는 `"main"`으로 바꿔야
+Worker가 올바른 브랜치의 `check.yml`을 깨운다.
 
 로컬 터미널로 배포하고 싶다면 (선택):
 
 ```bash
 npm install
 npx wrangler login
-npx wrangler secret put TELEGRAM_BOT_TOKEN
-npx wrangler secret put TELEGRAM_CHAT_ID
+npx wrangler secret put GITHUB_TOKEN   # DISPATCH_PAT과 같은 값
 npx wrangler deploy
 ```
 
-배포 후 수동 실행으로 카나리아가 살아있는지 바로 확인 가능 (선택, `DEBUG_TOKEN`
-시크릿을 등록한 경우):
-
-```bash
-curl "https://<worker-subdomain>.workers.dev/run?token=<DEBUG_TOKEN>"
-```
-
-로그는 Cloudflare 대시보드의 Worker → Logs 탭 (또는 `npx wrangler tail`)에서
-확인.
-
-## 설정값 (`wrangler.toml` `[vars]`)
-
-| 변수 | 설명 |
-|---|---|
-| `TARGET_DATE` | 감시할 목표 예약일. 예약 가능 범위는 오늘+60일이므로 그 안이어야 함 |
-| `CANARY_DATE` | 항상 열려 있는 것으로 확인된 날짜. **이 날짜가 실제로 만석이 되면 다른 예약 가능일로 교체할 것** — "신뢰 불가" 알림이 오면 그게 신호 |
-| `API_BASE` / `BOOKING_URL` | API 베이스, 알림에 넣을 예약 페이지 링크 |
-
-Cloudflare Cron Trigger는 `wrangler.toml`의 `[triggers] crons`에서
-`"*/10 * * * *"` (10분 간격)로 설정되어 있음.
+수동으로 한 번 깨워보고 싶다면 배포된 Worker URL에 그냥 접속(GET)하면 된다
+— `fetch` 핸들러도 동일하게 GitHub Actions를 깨운다. (이 URL은 인증 없이
+누구나 호출 가능하니, 알고 있는 사람이 스팸성으로 반복 실행시킬 수 있다는
+점은 감안할 것.)
 
 ## 해외 호스트(Cloudflare) 검증 관련
 
-이 API는 한국 IP에서만 검증되었고, Cloudflare Workers(해외 리전)에서의 동작은
-미검증. 배포 후 카나리아가 계속 `true`로 나오면(=신뢰 불가 알림이 안 오면) 이
-환경에서 정상 동작하는 것이고, 카나리아가 계속 `false`로 나오면(=신뢰 불가
-알림이 반복되면) 이 환경에서는 이 API가 막혀 있다는 뜻이니 한국 IP 환경(예:
-한국 리전 서버의 cron/systemd timer)으로 옮겨야 함.
+이 API는 한국 IP에서만 검증되었다. `scripts/check.mjs`는 GitHub Actions의
+`ubuntu-latest` 러너(해외 IP)에서 실행되므로, 카나리아가 계속 `false`로
+나오며 "신뢰 불가" 알림이 반복되면 이 실행 환경에서 API가 막혀 있다는
+뜻이다. 그 경우 `check.yml`의 러너를 한국 리전 self-hosted runner로 바꾸거나,
+한국 IP 서버의 cron/systemd timer로 옮겨야 한다.

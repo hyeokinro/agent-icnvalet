@@ -3,6 +3,10 @@ name: Deploy Worker
 on:
   push:
     branches: [main]
+    paths:
+      - "src/**"
+      - "wrangler.toml"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch: {}
 
 jobs:
@@ -20,12 +24,10 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
-      # wrangler secret put must run after the worker exists once, so it
-      # comes after the deploy step above.
-      - name: Set Telegram secrets
-        run: |
-          echo "${{ secrets.TELEGRAM_BOT_TOKEN }}" | npx wrangler secret put TELEGRAM_BOT_TOKEN
-          echo "${{ secrets.TELEGRAM_CHAT_ID }}" | npx wrangler secret put TELEGRAM_CHAT_ID
+      # DISPATCH_PAT is a GitHub PAT (Actions: read & write on this repo)
+      # that the deployed Worker uses to call the workflow_dispatch API.
+      - name: Set GitHub dispatch token secret
+        run: echo "${{ secrets.DISPATCH_PAT }}" | npx wrangler secret put GITHUB_TOKEN
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

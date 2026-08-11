@@ -6,12 +6,7 @@ compatibility_date = "2024-11-01"
 crons = ["*/10 * * * *"]
 
 [vars]
-API_BASE = "https://api.amanopark.co.kr/api"
-BOOKING_URL = "https://valet.amanopark.co.kr/booking"
-# Booking window is today+60 days; keep TARGET_DATE inside that range.
-TARGET_DATE = "2026-09-24"
-# Canary must be a date currently known to return data:true. This API
-# returns data:false for both "actually full" and "request/env broken" —
-# the canary is how the worker tells those apart. Replace it once 2026-09-20
-# fills up (see README).
-CANARY_DATE = "2026-09-20"
+GITHUB_REPO = "hyeokinro/agent-icnvalet"
+GITHUB_WORKFLOW = "check.yml"
+# main으로 머지되기 전까지는 이 브랜치를 가리킨다. 머지 후 "main"으로 바꿀 것.
+GITHUB_REF = "claude/amano-valet-booking-monitor-37w22p"
