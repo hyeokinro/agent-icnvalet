@@ -1,4 +1,5 @@
-// Amano 발렛 예약 잔여 감시 워커.
+// Amano 발렛 예약 잔여 감시 워커. 상태 저장 없이 매 실행이 독립적으로 동작:
+// 예약이 열려 있는 동안은 매 실행마다 계속 알림을 보낸다 (요청에 따른 단순화).
 //
 // 함정 노트 (스펙 참고):
 // - booking/check 의 type 은 실질적으로 BASIC만 인식한다. 프리미엄 확인은
@@ -8,51 +9,6 @@
 //   (항상 열려 있어야 하는 날짜) 를 매번 같이 조회해서, false 가 나오면
 //   "만석" 이 아니라 "신뢰 불가"(환경 차단 또는 카나리아 자체가 만석)로
 //   처리하고 목표일 결과를 버린다.
-
-const KV_KEY = "state";
-
-function defaultState() {
-  return {
-    canary: {
-      consecutiveErrors: 0,
-      errorAlerted: false,
-      schemaBroken: false,
-      untrustworthyAlerted: false,
-    },
-    general: {
-      consecutiveErrors: 0,
-      errorAlerted: false,
-      schemaBroken: false,
-      available: null,
-    },
-    premium: {
-      consecutiveErrors: 0,
-      errorAlerted: false,
-      schemaBroken: false,
-      available: null,
-    },
-  };
-}
-
-async function loadState(kv) {
-  const raw = await kv.get(KV_KEY);
-  const defaults = defaultState();
-  if (!raw) return defaults;
-  try {
-    const parsed = JSON.parse(raw);
-    return {
-      canary: { ...defaults.canary, ...parsed.canary },
-      general: { ...defaults.general, ...parsed.general },
-      premium: { ...defaults.premium, ...parsed.premium },
-    };
-  } catch {
-    return defaults;
-  }
-}
-
-async function saveState(kv, state) {
-  await kv.put(KV_KEY, JSON.stringify(state));
-}
 
 async function callApi(env, path, params) {
   const url = new URL(env.API_BASE + path);
@@ -107,36 +63,7 @@ async function sendTelegram(env, text) {
   }
 }
 
-// Edge-triggered: alert once when error count crosses the threshold, then
-// stay quiet until it recovers (handled by resetError) so a stuck outage
-// doesn't spam a message every minute.
-async function handleError(entry, ev, env, label) {
-  entry.consecutiveErrors = (entry.consecutiveErrors || 0) + 1;
-  const threshold = Number(env.ERROR_THRESHOLD || 3);
-  if (entry.consecutiveErrors >= threshold && !entry.errorAlerted) {
-    await sendTelegram(env, `🔴 ${label} API 오류 ${entry.consecutiveErrors}회 연속\n마지막 에러: ${ev.detail}`);
-    entry.errorAlerted = true;
-  }
-}
-
-function resetError(entry) {
-  entry.consecutiveErrors = 0;
-  entry.errorAlerted = false;
-}
-
-async function handleSchemaBroken(entry, env, label) {
-  if (!entry.schemaBroken) {
-    await sendTelegram(
-      env,
-      `🟠 ${label} 응답 구조 변경 감지: data 필드가 없거나 boolean이 아닙니다.\n감시기 코드 점검이 필요합니다.`
-    );
-    entry.schemaBroken = true;
-  }
-}
-
 export async function run(env) {
-  const state = await loadState(env.STATE);
-
   const canaryResp = await callApi(env, "/web/setting/booking/check", {
     date: env.CANARY_DATE,
     type: "BASIC",
@@ -145,76 +72,50 @@ export async function run(env) {
   const canaryLabel = `카나리아(${env.CANARY_DATE})`;
 
   if (canaryEval.status === "error") {
-    await handleError(state.canary, canaryEval, env, canaryLabel);
-    await saveState(env.STATE, state);
+    await sendTelegram(env, `🔴 ${canaryLabel} API 오류: ${canaryEval.detail}`);
     return;
   }
-  resetError(state.canary);
-
   if (canaryEval.status === "schema_broken") {
-    await handleSchemaBroken(state.canary, env, canaryLabel);
-    await saveState(env.STATE, state);
+    await sendTelegram(env, `🟠 ${canaryLabel} 응답 구조 변경 감지: data 필드가 없거나 boolean이 아닙니다.`);
     return;
   }
-  state.canary.schemaBroken = false;
-
   if (canaryEval.data === false) {
-    if (!state.canary.untrustworthyAlerted) {
-      await sendTelegram(
-        env,
-        `⚠️ 신뢰 불가: ${canaryLabel} 결과가 false입니다.\n` +
-          `환경이 차단되었거나 카나리아 날짜가 실제로 만석이 된 것일 수 있습니다.\n` +
-          `만석이 맞다면 CANARY_DATE를 다른 예약 가능일로 교체하세요.\n` +
-          `이번 실행의 목표일 결과는 폐기합니다.`
-      );
-      state.canary.untrustworthyAlerted = true;
-    }
-    await saveState(env.STATE, state);
+    await sendTelegram(
+      env,
+      `⚠️ 신뢰 불가: ${canaryLabel} 결과가 false입니다.\n` +
+        `환경이 차단되었거나 카나리아 날짜가 실제로 만석이 된 것일 수 있습니다.\n` +
+        `만석이 맞다면 CANARY_DATE를 다른 예약 가능일로 교체하세요.\n` +
+        `이번 실행의 목표일 결과는 폐기합니다.`
+    );
     return;
   }
-  if (state.canary.untrustworthyAlerted) {
-    await sendTelegram(env, `✅ ${canaryLabel} 정상 복구 (data:true). 감시를 재개합니다.`);
-  }
-  state.canary.untrustworthyAlerted = false;
 
   const targets = [
     {
-      key: "general",
       label: `일반발렛(${env.TARGET_DATE})`,
       call: () => callApi(env, "/web/setting/booking/check", { date: env.TARGET_DATE, type: "BASIC" }),
     },
     {
-      key: "premium",
       label: `프리미엄발렛(${env.TARGET_DATE})`,
       call: () => callApi(env, "/web/setting/premium/check", { date: env.TARGET_DATE }),
     },
   ];
 
   for (const target of targets) {
-    const entry = state[target.key];
     const ev = evaluate(await target.call());
 
     if (ev.status === "error") {
-      await handleError(entry, ev, env, target.label);
+      await sendTelegram(env, `🔴 ${target.label} API 오류: ${ev.detail}`);
       continue;
     }
-    resetError(entry);
-
     if (ev.status === "schema_broken") {
-      await handleSchemaBroken(entry, env, target.label);
+      await sendTelegram(env, `🟠 ${target.label} 응답 구조 변경 감지: data 필드가 없거나 boolean이 아닙니다.`);
       continue;
     }
-    entry.schemaBroken = false;
-
-    // null (unknown, first run) never triggers an alert — only an observed
-    // false -> true transition does.
-    if (ev.data === true && entry.available === false) {
-      await sendTelegram(env, `🚗 ${target.label} 예약 가능해졌습니다! (false → true)\n예약: ${env.BOOKING_URL}`);
+    if (ev.data === true) {
+      await sendTelegram(env, `🚗 ${target.label} 예약 가능!\n예약: ${env.BOOKING_URL}`);
     }
-    entry.available = ev.data;
   }
-
-  await saveState(env.STATE, state);
 }
 
 export default {
