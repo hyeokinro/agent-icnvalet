@@ -72,12 +72,14 @@ Actions로 자동배포하는 대신 Cloudflare 대시보드에 한 번 붙여�
 4. 해당 Worker → **Settings → Triggers → Cron Triggers → Add Cron Trigger**
    → `*/10 * * * *` 입력 → 저장.
 
-**`GITHUB_TOKEN`용 토큰 만들기**: fine-grained 토큰은 권한을 맞게 줘도
-`workflow_dispatch` 호출에서 `403 Resource not accessible by integration`을
-내는 경우가 있었다 (알려진 제약). **Classic** 토큰을 쓸 것 — GitHub 우측 상단
-프로필 → Settings → Developer settings → Personal access tokens → **Tokens
-(classic)** → Generate new token (classic) → scopes에서 `workflow` 체크
-(이 저장소는 public이라 `repo` 전체 대신 `public_repo` + `workflow`면 충분).
+**`GITHUB_TOKEN`용 토큰 만들기**: GitHub 우측 상단 프로필 → Settings →
+Developer settings → Personal access tokens → Fine-grained tokens →
+Generate new token. Repository access는 이 저장소(`agent-icnvalet`)만
+선택하고, Permissions에서 **Contents: Read-only**, **Actions: Read and
+write** 권한을 준다. (한때 이 토큰으로 `workflow_dispatch`가 계속 실패했는데,
+원인은 토큰이 아니라 대시보드 `GITHUB_REPO`/`GITHUB_WORKFLOW`/`GITHUB_REF`
+변수 값에 섞여 있던 보이지 않는 공백/문자였다 — 그래서 이 값들을 변수 대신
+코드에 직접 박아둔 것.)
 
 수동으로 한 번 깨워보고 싶다면 배포된 Worker URL에 그냥 접속(GET)하면 된다
 — `fetch` 핸들러도 동일하게 GitHub Actions를 깨운다. (이 URL은 인증 없이
