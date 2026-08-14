@@ -12,7 +12,6 @@ const {
   API_BASE,
   BOOKING_URL,
   TARGET_DATE,
-  CANARY_DATE,
   TELEGRAM_BOT_TOKEN,
   TELEGRAM_CHAT_ID,
   VERBOSE,
@@ -21,6 +20,18 @@ const {
 // 테스트용: true면 "아직 자리 없음"도 알려줘서 체크가 실제로 도는지 눈으로
 // 확인할 수 있다. 정상 운영 시엔 매 실행마다 스팸이 되니 false로 끌 것.
 const verbose = VERBOSE === "true";
+
+// 카나리아 날짜를 고정값으로 손으로 갈아주지 않아도 되게, 예약 가능 범위
+// (오늘+60일) 끝자락에 가까운 날짜를 매번 계산해서 쓴다. 아직 아무도 그렇게
+// 먼 날짜를 안 채워서 거의 항상 열려 있다 (실측: 60일 중 55일째까지는 계속
+// true, 근접한 날짜부터 하나씩 찬다).
+const CANARY_OFFSET_DAYS = 55;
+function daysFromNow(days) {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+const CANARY_DATE = daysFromNow(CANARY_OFFSET_DAYS);
 
 async function callApi(path, params) {
   const url = new URL(API_BASE + path);
