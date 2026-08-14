@@ -4,7 +4,7 @@
 
 async function triggerCheck(env) {
   const resp = await fetch(
-    `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/${env.GITHUB_WORKFLOW}/dispatches`,
+    "https://api.github.com/repos/hyeokinro/agent-icnvalet/actions/workflows/check.yml/dispatches",
     {
       method: "POST",
       headers: {
@@ -13,7 +13,7 @@ async function triggerCheck(env) {
         "Content-Type": "application/json",
         "User-Agent": "Cloudflare-Worker",
       },
-      body: JSON.stringify({ ref: env.GITHUB_REF }),
+      body: JSON.stringify({ ref: "main" }),
     }
   );
   return resp.status;

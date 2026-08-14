@@ -1,14 +1,9 @@
 # 참고용. 배포는 Cloudflare 대시보드에서 직접 하므로 이 파일은 실제로
-# 사용되지 않는다 — 여기 적힌 vars 이름/값을 대시보드의 Settings → Variables
-# 에 그대로 입력하면 된다 (README 참고).
+# 사용되지 않는다. 저장소/워크플로우/브랜치는 src/index.js에 그대로 박혀
+# 있어서 대시보드에 넣을 변수는 GITHUB_TOKEN(시크릿) 하나뿐이다.
 name = "amano-valet-watch"
 main = "src/index.js"
 compatibility_date = "2024-11-01"
 
 [triggers]
 crons = ["*/10 * * * *"]
-
-[vars]
-GITHUB_REPO = "hyeokinro/agent-icnvalet"
-GITHUB_WORKFLOW = "check.yml"
-GITHUB_REF = "main"

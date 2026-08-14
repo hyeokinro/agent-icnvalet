@@ -66,20 +66,18 @@ Actions로 자동배포하는 대신 Cloudflare 대시보드에 한 번 붙여�
    **Create Worker** → 이름 정하고 배포 (기본 "Hello World" 코드로 일단 생성됨).
 2. 생성된 Worker → **Edit code** (또는 Quick edit) → `src/index.js` 내용을
    전체 복사해서 붙여넣기 → **Save and deploy**.
-3. 해당 Worker → **Settings → Variables** → *Environment Variables* 에
-   `wrangler.toml`의 `[vars]`에 있는 값 그대로 3개 추가:
-   - `GITHUB_REPO` = `hyeokinro/agent-icnvalet`
-   - `GITHUB_WORKFLOW` = `check.yml`
-   - `GITHUB_REF` = `main`
-4. 같은 화면에서 **Add secret**으로 `GITHUB_TOKEN` 추가 — 값은 GitHub
-   Personal Access Token (아래 참고).
-5. 해당 Worker → **Settings → Triggers → Cron Triggers → Add Cron Trigger**
+3. 해당 Worker → **Settings → Variables** → **Add secret**으로 `GITHUB_TOKEN`
+   하나만 추가 — 값은 GitHub Personal Access Token (아래 참고). 저장소/워크플로우
+   /브랜치는 `src/index.js`에 그대로 박혀 있어서 이거 하나면 끝.
+4. 해당 Worker → **Settings → Triggers → Cron Triggers → Add Cron Trigger**
    → `*/10 * * * *` 입력 → 저장.
 
-**`GITHUB_TOKEN`용 PAT 만들기**: GitHub 우측 상단 프로필 → Settings →
-Developer settings → Personal access tokens → Fine-grained tokens →
-Generate new token. Repository access는 이 저장소(`agent-icnvalet`)만
-선택하고, Permissions에서 **Actions: Read and write** 권한을 준다.
+**`GITHUB_TOKEN`용 토큰 만들기**: fine-grained 토큰은 권한을 맞게 줘도
+`workflow_dispatch` 호출에서 `403 Resource not accessible by integration`을
+내는 경우가 있었다 (알려진 제약). **Classic** 토큰을 쓸 것 — GitHub 우측 상단
+프로필 → Settings → Developer settings → Personal access tokens → **Tokens
+(classic)** → Generate new token (classic) → scopes에서 `workflow` 체크
+(이 저장소는 public이라 `repo` 전체 대신 `public_repo` + `workflow`면 충분).
 
 수동으로 한 번 깨워보고 싶다면 배포된 Worker URL에 그냥 접속(GET)하면 된다
 — `fetch` 핸들러도 동일하게 GitHub Actions를 깨운다. (이 URL은 인증 없이
