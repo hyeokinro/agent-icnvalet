@@ -10,7 +10,7 @@ jobs:
       API_BASE: https://api.amanopark.co.kr/api
       BOOKING_URL: https://valet.amanopark.co.kr/booking
       TARGET_DATE: "2026-09-24"
-      CANARY_DATE: "2026-09-20"
+      CANARY_DATE: "2026-09-27"
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       VERBOSE: "false"
